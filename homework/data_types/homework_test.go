@@ -28,14 +28,14 @@ func ToLittleEndian[T uint16 | uint32 | uint64](number T) T {
 	// для первой подобной задачи в практике
 	// по скорости выполнения они +/- идентичны
 
-	for idx := 0; idx < bytesCount/2; idx++ {
-		rightshift := (bytesCount - 2*idx - 1) * 8
-		rightmask := T(0xFF) << ((bytesCount - idx - 1) * 8)
-		result += (number << rightshift) & rightmask
+	for idx := range bytesCount / 2 {
+		rightShift := (bytesCount - 2*idx - 1) * 8
+		rightMask := T(0xFF) << ((bytesCount - idx - 1) * 8)
+		result += (number << rightShift) & rightMask
 
-		leftshift := (bytesCount - 2*idx - 1) * 8
-		leftmask := T(0xFF) << (idx * 8)
-		result += (number >> leftshift) & leftmask
+		leftShift := (bytesCount - 2*idx - 1) * 8
+		leftMask := T(0xFF) << (idx * 8)
+		result += (number >> leftShift) & leftMask
 	}
 
 	return result
