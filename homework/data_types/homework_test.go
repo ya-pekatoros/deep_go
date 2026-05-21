@@ -14,28 +14,9 @@ func ToLittleEndian[T uint16 | uint32 | uint64](number T) T {
 
 	var result T
 
-	// ниже Авторское решение xD когда я захотел упростить и посоветовался с gpt то
-	// получил куда элегантнее:
-	// for i := 0; i < bytesCount; i++ {
-	// b := (number >> (i * 8)) & T(0xFF)
-	// result |= b << ((bytesCount - 1 - i) * 8)
-	// }
-	// идею я понял, но не буду выдавать за свое =)
-	// на самом деле я что-то недопер сразу, что вытащить нужный нам бит
-	// действительно куда проще через маску где значимый только 1-й бит
-	// а потом поставить его на место, зная сдвиг
-	// мой вариант страшный, но мне был проще в понимании
-	// для первой подобной задачи в практике
-	// по скорости выполнения они +/- идентичны
-
-	for idx := range bytesCount / 2 {
-		rightShift := (bytesCount - 2*idx - 1) * 8
-		rightMask := T(0xFF) << ((bytesCount - idx - 1) * 8)
-		result += (number << rightShift) & rightMask
-
-		leftShift := (bytesCount - 2*idx - 1) * 8
-		leftMask := T(0xFF) << (idx * 8)
-		result += (number >> leftShift) & leftMask
+	for i := 0; i < bytesCount; i++ {
+		b := (number >> (i * 8)) & T(0xFF)
+		result |= b << ((bytesCount - 1 - i) * 8)
 	}
 
 	return result
@@ -47,7 +28,6 @@ func runTests[T uint16 | uint32 | uint64](t *testing.T, tests []struct {
 	result T
 }) {
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.result, ToLittleEndian(tc.number))
 		})
