@@ -21,17 +21,6 @@ type CircularQueue[T QueueElement] struct {
 }
 
 func NewCircularQueue[T QueueElement](size int, _ T) CircularQueue[T] {
-	// тут мы для удобства вызова передаем тип элемента очереди
-	// еще как альтернатива - передавать сразу элементы для инициализации
-	// или же можно вынести отдельные инициализаторы под каждый тип элемента
-	// например:
-	// 	type Int64Queue = CircularQueue[int64]
-
-	// func NewInt64Queue(size int) Int64Queue {
-	// 	return CircularQueue[int64]{
-	// 		values: make([]int64, size),
-	// 	}
-	// }
 	return CircularQueue[T]{
 		values: make([]T, size),
 	}
@@ -42,17 +31,9 @@ func (q *CircularQueue[T]) Push(value T) bool {
 		// очередь полностью заполнена
 		return false
 	}
-
-	// в tail храним положение последнего элемента
-	// но если буфер еще не заполнялся
-	// то вставлять нужно в начало
-	// если буфер стал пустым - можно сделать также
-	if q.len == 0 {
-		q.tail = 0
-	} else {
-		q.tail = (q.tail + 1) % len(q.values)
-	}
 	q.values[q.tail] = value
+	// в tail храним положение следующей вставки
+	q.tail = (q.tail + 1) % len(q.values)
 	q.len++
 
 	return true
@@ -64,23 +45,13 @@ func (q *CircularQueue[T]) Pop() bool {
 	}
 
 	q.len--
-	q.values[q.head] = T(0)
-	if q.len == 0 {
-		// если буфер опустел переводим head в начало
-		q.head = 0
-	} else {
-		q.head = (q.head + 1) % len(q.values)
-	}
+	q.head = (q.head + 1) % len(q.values)
 
 	return true
 }
 
 func (q *CircularQueue[T]) Front() (T, bool) {
 	if q.len == 0 {
-		// я тут отступлю от задания, мне не очень понятно как мы -1 будет отличать от реального значения элемента
-		// очереди, так что я решил, что будем отдавать значение + bool
-		// тем более что вернуть int когда мы работает с дженериками в одном кейсе и T - в другом
-		// все равно надо нарушать контракт из задания
 		return T(0), false
 	}
 	return q.values[q.head], true
@@ -88,16 +59,10 @@ func (q *CircularQueue[T]) Front() (T, bool) {
 
 func (q *CircularQueue[T]) Back() (T, bool) {
 	if q.len == 0 {
-		// я тут отступлю от задания, мне не очень понятно как мы -1 будет отличать от реального значения элемента
-		// очереди, так что я решил, что будем отдавать значение + bool
-		// тем более что вернуть int когда мы работает с дженериками в одном кейсе и T - в другом
-		// все равно надо нарушать контракт из задания
 		return T(0), false
 	}
-	// тут все удобно, тк в tail храним положение последнего элемента
-	// если бы хранили место вставки нового, то пришлось бы делать
-	// q.values[q.tail - 1] и обрабатывать кейс когда tail == 0
-	return q.values[q.tail], true
+	backIndex := (q.tail - 1 + len(q.values)) % len(q.values)
+	return q.values[backIndex], true
 }
 
 func (q *CircularQueue[T]) Empty() bool {
