@@ -10,37 +10,40 @@ import (
 )
 
 type COWBuffer struct {
-	data []byte
-	refs *int
+	data      []byte
+	refs      *int
+	localRefs int
 }
 
-func NewCOWBuffer(data []byte) COWBuffer {
+func NewCOWBuffer(data []byte) *COWBuffer {
 	refs := new(int)
 	*refs = 1
 
 	b := &COWBuffer{
-		data: data,
-		refs: refs,
+		data:      data,
+		refs:      refs,
+		localRefs: 1,
 	}
 
 	runtime.SetFinalizer(b, func(b *COWBuffer) {
 		b.Close()
 	})
 
-	return *b
+	return b
 }
 
-func (b *COWBuffer) Clone() COWBuffer {
-	(*b.refs)++
-	return COWBuffer{
-		data: b.data,
-		refs: b.refs,
-	}
+func (b *COWBuffer) Clone() *COWBuffer {
+	*b.refs++
+
+	newBuffer := NewCOWBuffer(b.data)
+	newBuffer.refs = b.refs
+	return newBuffer
 }
 
 func (b *COWBuffer) Close() {
-	if (*b.refs) > 0 {
-		(*b.refs)--
+	if b.localRefs > 0 {
+		*b.refs--
+		b.localRefs--
 	}
 	b.data = nil
 }
@@ -53,8 +56,8 @@ func (b *COWBuffer) Update(index int, value byte) bool {
 		return false
 	}
 
-	if (*b.refs) > 1 {
-		(*b.refs)--
+	if *b.refs > 1 {
+		*b.refs--
 
 		data := make([]byte, len(b.data))
 		copy(data, b.data)
