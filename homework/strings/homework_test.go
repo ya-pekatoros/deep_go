@@ -3,6 +3,7 @@ package main
 import (
 	"reflect"
 	"runtime"
+	"slices"
 	"testing"
 	"unsafe"
 
@@ -10,9 +11,9 @@ import (
 )
 
 type COWBuffer struct {
-	data      []byte
-	refs      *int
-	localRefs int
+	data   []byte
+	refs   *int
+	closed bool
 }
 
 func NewCOWBuffer(data []byte) *COWBuffer {
@@ -20,9 +21,9 @@ func NewCOWBuffer(data []byte) *COWBuffer {
 	*refs = 1
 
 	b := &COWBuffer{
-		data:      data,
-		refs:      refs,
-		localRefs: 1,
+		data:   data,
+		refs:   refs,
+		closed: false,
 	}
 
 	runtime.SetFinalizer(b, func(b *COWBuffer) {
@@ -41,10 +42,11 @@ func (b *COWBuffer) Clone() *COWBuffer {
 }
 
 func (b *COWBuffer) Close() {
-	if b.localRefs > 0 {
-		*b.refs--
-		b.localRefs--
+	if b.closed {
+		return
 	}
+	b.closed = true
+	*b.refs--
 	b.data = nil
 }
 
@@ -59,8 +61,7 @@ func (b *COWBuffer) Update(index int, value byte) bool {
 	if *b.refs > 1 {
 		*b.refs--
 
-		data := make([]byte, len(b.data))
-		copy(data, b.data)
+		data := slices.Clone(b.data)
 
 		b.data = data
 		b.refs = new(int)
