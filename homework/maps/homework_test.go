@@ -10,14 +10,17 @@ import (
 
 // go test -v homework_test.go
 
-type OrderedMap[K cmp.Ordered, V any] struct {
+type orderedMapNode[K cmp.Ordered, V any] struct {
 	key   K
 	value V
 
-	size int
+	left  *orderedMapNode[K, V]
+	right *orderedMapNode[K, V]
+}
 
-	left  *OrderedMap[K, V]
-	right *OrderedMap[K, V]
+type OrderedMap[K cmp.Ordered, V any] struct {
+	root *orderedMapNode[K, V]
+	size int
 }
 
 func NewOrderedMap[K cmp.Ordered, V any]() *OrderedMap[K, V] {
@@ -25,118 +28,88 @@ func NewOrderedMap[K cmp.Ordered, V any]() *OrderedMap[K, V] {
 }
 
 func (m *OrderedMap[K, V]) Insert(key K, value V) {
-	if m.size == 0 {
-		m.key = key
-		m.value = value
+	var sizeIncreased bool
+	m.root, sizeIncreased = insertNode(m.root, key, value)
+	if sizeIncreased {
 		m.size++
-		return
 	}
-	current := m
-	for current != nil {
-		if current.key == key {
-			current.value = value
-			return
-		}
-		if current.key > key {
-			if current.left == nil {
-				current.left = &OrderedMap[K, V]{key: key, value: value, size: 1}
-				m.size++
-				return
-			}
-			current = current.left
-		} else {
-			if current.right == nil {
-				current.right = &OrderedMap[K, V]{key: key, value: value, size: 1}
-				m.size++
-				return
-			}
-			current = current.right
-		}
+}
+
+func insertNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], key K, value V) (*orderedMapNode[K, V], bool) {
+	if node == nil {
+		return &orderedMapNode[K, V]{key: key, value: value}, true
 	}
+
+	sizeIncreased := false
+
+	if node.key == key {
+		node.value = value
+		return node, sizeIncreased
+	}
+
+	if key < node.key {
+		node.left, sizeIncreased = insertNode(node.left, key, value)
+		return node, sizeIncreased
+	}
+
+	node.right, sizeIncreased = insertNode(node.right, key, value)
+	return node, sizeIncreased
 }
 
 func (m *OrderedMap[K, V]) Erase(key K) {
-	if m.size == 0 {
-		return
+	var sizeDecreased bool
+	m.root, sizeDecreased = eraseNode(m.root, key)
+	if sizeDecreased {
+		m.size--
+	}
+}
+
+func eraseNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], key K) (*orderedMapNode[K, V], bool) {
+	if node == nil {
+		return nil, false
 	}
 
-	var parent *OrderedMap[K, V]
-	current := m
+	sizeDecreased := false
 
-	for current != nil {
-		if current.key == key {
-			break
-		}
-
-		parent = current
-		if key < current.key {
-			current = current.left
-		} else {
-			current = current.right
-		}
+	if key < node.key {
+		node.left, sizeDecreased = eraseNode(node.left, key)
+		return node, sizeDecreased
 	}
 
-	if current == nil {
-		return
+	if key > node.key {
+		node.right, sizeDecreased = eraseNode(node.right, key)
+		return node, sizeDecreased
 	}
 
-	if current.left != nil && current.right != nil {
-		leftMostParent := current
-		leftMost := current.right
-
-		// ищем минимальное значение в правом поддереве, им заменим удаляемый элемент
-		for leftMost.left != nil {
-			leftMostParent = leftMost
-			leftMost = leftMost.left
-		}
-
-		current.key = leftMost.key
-		current.value = leftMost.value
-
-		// теперь будем удалять тот элемент, который ранее исполльзовался для замены удаляемого
-		parent = leftMostParent
-		current = leftMost
+	if node.left == nil {
+		return node.right, true
 	}
 
-	var child *OrderedMap[K, V]
-	if current.left != nil {
-		child = current.left
-	} else {
-		child = current.right
+	if node.right == nil {
+		return node.left, true
 	}
 
-	if parent == nil {
-		if child == nil {
-			// кейс мапы из одного элемента
-			var zeroK K
-			var zeroV V
+	replacementRight, replacement := detachMinNode(node.right)
+	replacement.left = node.left
+	replacement.right = replacementRight
 
-			m.key = zeroK
-			m.value = zeroV
-			m.left = nil
-			m.right = nil
-		} else {
-			// кейс удаления корня мапы с одним поддеревом
-			m.key = child.key
-			m.value = child.value
-			m.left = child.left
-			m.right = child.right
-		}
-	} else if parent.left == current {
-		parent.left = child
-	} else {
-		parent.right = child
+	return replacement, true
+}
+
+func detachMinNode[K cmp.Ordered, V any](node *orderedMapNode[K, V]) (*orderedMapNode[K, V], *orderedMapNode[K, V]) {
+	if node.left == nil {
+		right := node.right
+		node.right = nil
+		return right, node
 	}
 
-	m.size--
+	var min *orderedMapNode[K, V]
+	node.left, min = detachMinNode(node.left)
+	return node, min
 }
 
 func (m *OrderedMap[K, V]) Contains(key K) bool {
-	if m.size == 0 {
-		return false
-	}
-
-	current := m
+	current := m.root
 	for current != nil {
 		if current.key == key {
 			return true
@@ -156,20 +129,20 @@ func (m *OrderedMap[K, V]) Size() int {
 }
 
 func (m *OrderedMap[K, V]) ForEach(action func(K, V)) {
-	if m.size == 0 {
+	forEachNode(m.root, action)
+}
+
+func forEachNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], action func(K, V)) {
+	if node == nil {
 		return
 	}
 
-	if m.left != nil {
-		m.left.ForEach(action)
-	}
-	action(m.key, m.value)
-	if m.right != nil {
-		m.right.ForEach(action)
-	}
+	forEachNode(node.left, action)
+	action(node.key, node.value)
+	forEachNode(node.right, action)
 }
 
-func TestCircularQueue(t *testing.T) {
+func TestOrderedMap(t *testing.T) {
 	data := NewOrderedMap[int, int]()
 	assert.Zero(t, data.Size())
 
@@ -212,9 +185,43 @@ func TestCircularQueue(t *testing.T) {
 	})
 
 	assert.True(t, reflect.DeepEqual(expectedKeys, keys))
+
+	data.Insert(6, 6)
+	data.Erase(5)
+
+	assert.False(t, data.Contains(5))
+	assert.True(t, data.Contains(6))
+
+	keys = nil
+	expectedKeys = []int{4, 6, 10, 12}
+	data.ForEach(func(key, _ int) {
+		keys = append(keys, key)
+	})
+
+	assert.True(t, reflect.DeepEqual(expectedKeys, keys))
 }
 
-func TestCircularQueueWithSlices(t *testing.T) {
+func TestOrderedMapEraseRootWithDeepSuccessor(t *testing.T) {
+	data := NewOrderedMap[int, int]()
+	for _, key := range []int{10, 5, 20, 15, 30, 12, 17} {
+		data.Insert(key, key)
+	}
+
+	data.Erase(10)
+
+	assert.Equal(t, 6, data.Size())
+	assert.False(t, data.Contains(10))
+
+	var keys []int
+	expectedKeys := []int{5, 12, 15, 17, 20, 30}
+	data.ForEach(func(key, _ int) {
+		keys = append(keys, key)
+	})
+
+	assert.True(t, reflect.DeepEqual(expectedKeys, keys))
+}
+
+func TestOrderedMapWithSlices(t *testing.T) {
 	data := NewOrderedMap[string, []map[int]int]() // наввернем что-нибудь покруче
 	assert.Zero(t, data.Size())
 
