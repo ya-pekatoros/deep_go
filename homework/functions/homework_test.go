@@ -7,19 +7,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Map(data []int, action func(int) int) []int {
-	// need to implement
-	return nil
+func Map[T, R any](data []T, action func(T) R) []R {
+	if data == nil {
+		return nil
+	}
+
+	result := make([]R, len(data))
+	for i, item := range data {
+		result[i] = action(item)
+	}
+
+	return result
 }
 
-func Filter(data []int, action func(int) bool) []int {
-	// need to implement
-	return nil
+func Filter[T any](data []T, action func(T) bool) []T {
+	if data == nil {
+		return nil
+	}
+
+	result := make([]T, 0, len(data))
+
+	for _, item := range data {
+		if action(item) {
+			result = append(result, item)
+		}
+	}
+
+	return result
 }
 
-func Reduce(data []int, initial int, action func(int, int) int) int {
-	// need to implement
-	return 0
+func Reduce[T any](data []T, initial T, action func(T, T) T) T {
+	result := initial
+
+	for _, item := range data {
+		result = action(result, item)
+	}
+
+	return result
 }
 
 func TestMap(t *testing.T) {
@@ -64,6 +88,17 @@ func TestMap(t *testing.T) {
 	}
 }
 
+func TestMapStringsToLengths(t *testing.T) {
+	data := []string{"go", "rust", "java"}
+
+	result := Map(data, func(word string) int {
+		return len(word)
+	})
+
+	assert.Equal(t, []int{2, 4, 4}, result)
+	assert.Equal(t, []string{"go", "rust", "java"}, data)
+}
+
 func TestFilter(t *testing.T) {
 	tests := map[string]struct {
 		data   []int
@@ -104,6 +139,17 @@ func TestFilter(t *testing.T) {
 			assert.True(t, reflect.DeepEqual(test.result, result))
 		})
 	}
+}
+
+func TestFilterStrings(t *testing.T) {
+	data := []string{"go", "python", "c", "rust"}
+
+	result := Filter(data, func(word string) bool {
+		return len(word) > 3
+	})
+
+	assert.Equal(t, []string{"python", "rust"}, result)
+	assert.Equal(t, []string{"go", "python", "c", "rust"}, data)
 }
 
 func TestReduce(t *testing.T) {
@@ -147,4 +193,12 @@ func TestReduce(t *testing.T) {
 			assert.Equal(t, test.result, result)
 		})
 	}
+}
+
+func TestReduceStrings(t *testing.T) {
+	result := Reduce([]string{"go", "lang"}, "", func(result, word string) string {
+		return result + word
+	})
+
+	assert.Equal(t, "golang", result)
 }
