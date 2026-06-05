@@ -11,6 +11,9 @@ func Map[T, R any](data []T, action func(T) R) []R {
 	if data == nil {
 		return nil
 	}
+	if len(data) == 0 {
+		return []R{}
+	}
 
 	result := make([]R, len(data))
 	for i, item := range data {
@@ -21,8 +24,8 @@ func Map[T, R any](data []T, action func(T) R) []R {
 }
 
 func Filter[T any](data []T, action func(T) bool) []T {
-	if data == nil {
-		return nil
+	if len(data) == 0 {
+		return data
 	}
 
 	result := make([]T, 0, len(data))
@@ -97,6 +100,16 @@ func TestMapStringsToLengths(t *testing.T) {
 
 	assert.Equal(t, []int{2, 4, 4}, result)
 	assert.Equal(t, []string{"go", "rust", "java"}, data)
+}
+
+func TestMapEmptyStringsToLengths(t *testing.T) {
+	data := []string{}
+
+	result := Map(data, func(word string) int {
+		return len(word)
+	})
+
+	assert.Equal(t, []int{}, result)
 }
 
 func TestFilter(t *testing.T) {
