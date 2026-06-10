@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"math"
 	"testing"
 	"unsafe"
@@ -12,79 +13,89 @@ type Option func(*GamePerson)
 
 func WithName(name string) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		clear(person.name[:])
+		copy(person.name[:], name)
 	}
 }
 
 func WithCoordinates(x, y, z int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.x = int32(x)
+		person.y = int32(y)
+		person.z = int32(z)
 	}
 }
 
 func WithGold(gold int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.gold = uint32(gold)
 	}
 }
 
 func WithMana(mana int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.stats = (person.stats &^ (GamePersonStats(stats10BitMask) << statsManaShift)) |
+			(GamePersonStats(mana&stats10BitMask) << statsManaShift)
 	}
 }
 
 func WithHealth(health int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.stats = (person.stats &^ (GamePersonStats(stats10BitMask) << statsHealthShift)) |
+			(GamePersonStats(health&stats10BitMask) << statsHealthShift)
 	}
 }
 
 func WithRespect(respect int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.socialStats = (person.socialStats &^ (GamePersonSocialStats(social4BitMask) << socialRespectShift)) |
+			(GamePersonSocialStats(respect&social4BitMask) << socialRespectShift)
 	}
 }
 
 func WithStrength(strength int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.stats = (person.stats &^ (GamePersonStats(stats4BitMask) << statsStrengthShift)) |
+			(GamePersonStats(strength&stats4BitMask) << statsStrengthShift)
 	}
 }
 
 func WithExperience(experience int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.stats = (person.stats &^ (GamePersonStats(stats4BitMask) << statsExperienceShift)) |
+			(GamePersonStats(experience&stats4BitMask) << statsExperienceShift)
 	}
 }
 
 func WithLevel(level int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.stats = (person.stats &^ (GamePersonStats(stats4BitMask) << statsLevelShift)) |
+			(GamePersonStats(level&stats4BitMask) << statsLevelShift)
 	}
 }
 
 func WithHouse() func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.socialStats |= GamePersonSocialStats(social1BitMask) << socialHouseShift
 	}
 }
 
-func WithGun() func(*GamePerson) {
+func WithWeapon() func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.hasWeapon = true
 	}
 }
 
 func WithFamily() func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.socialStats |= GamePersonSocialStats(social1BitMask) << socialFamilyShift
 	}
 }
 
 func WithType(personType int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		// need to implement
+		person.socialStats = (person.socialStats &^ (GamePersonSocialStats(social2BitMask) << socialTypeShift)) |
+			(GamePersonSocialStats(personType&social2BitMask) << socialTypeShift)
 	}
 }
 
@@ -94,88 +105,130 @@ const (
 	WarriorGamePersonType
 )
 
+const (
+	stats10BitMask = 0x3FF
+	stats4BitMask  = 0xF
+
+	statsHealthShift     = 0
+	statsManaShift       = 10
+	statsExperienceShift = 20
+	statsLevelShift      = 24
+	statsStrengthShift   = 28
+)
+
+const (
+	social4BitMask = 0xF
+	social2BitMask = 0x3
+	social1BitMask = 0x1
+
+	socialRespectShift = 0
+	socialHouseShift   = 4
+	socialFamilyShift  = 5
+	socialTypeShift    = 6
+)
+
+// GamePersonStats битовая маска для хранения всех характеристик персонажа в одном uint32
+// в обратном порядке
+// [0-1000] - Health (10 бит)
+// [0-1000] - Mana (10 бит)
+// [0-10] - Experience (4 бита)
+// [0-10] - Level (4 бита)
+// [0-10] - Strength (4 бита)
+
+type GamePersonStats uint32
+
+// GamePersonSocialStats битовая маска для хранения всех социальных характеристик персонажа в одном uint8
+// в обратном порядке
+// [0-10] - Respect (4 бита)
+// [0-1] - HasHouse (1 бит)
+// [0-1] - HasFamily (1 бит)
+// [0-3] - Type (2 бита)
+
+type GamePersonSocialStats uint8
+
 type GamePerson struct {
-	// need to implement
+	x           int32                 // 4 байта
+	y           int32                 // 4 байта
+	z           int32                 // 4 байта
+	gold        uint32                // 4 байта
+	name        [42]byte              // 42 байта
+	socialStats GamePersonSocialStats // 1 байт
+	hasWeapon   bool                  // 1 байт
+	stats       GamePersonStats       // 4 байта
+	// 4 + 4 + 4 + 4 + 42 + 1 + 1 + 4 = 64 байта
+	// выравнивание по 4 байтам
 }
 
 func NewGamePerson(options ...Option) GamePerson {
-	// need to implement
-	return GamePerson{}
+	person := GamePerson{}
+	for _, option := range options {
+		option(&person)
+	}
+	return person
 }
 
 func (p *GamePerson) Name() string {
-	// need to implement
-	return ""
+	n := bytes.IndexByte(p.name[:], 0)
+	if n == -1 {
+		n = len(p.name)
+	}
+	return string(p.name[:n])
 }
 
 func (p *GamePerson) X() int {
-	// need to implement
-	return 0
+	return int(p.x)
 }
 
 func (p *GamePerson) Y() int {
-	// need to implement
-	return 0
+	return int(p.y)
 }
 
 func (p *GamePerson) Z() int {
-	// need to implement
-	return 0
+	return int(p.z)
 }
 
 func (p *GamePerson) Gold() int {
-	// need to implement
-	return 0
+	return int(p.gold)
 }
 
 func (p *GamePerson) Mana() int {
-	// need to implement
-	return 0
+	return int((p.stats >> statsManaShift) & stats10BitMask)
 }
 
 func (p *GamePerson) Health() int {
-	// need to implement
-	return 0
+	return int((p.stats >> statsHealthShift) & stats10BitMask)
 }
 
 func (p *GamePerson) Respect() int {
-	// need to implement
-	return 0
+	return int((p.socialStats >> socialRespectShift) & social4BitMask)
 }
 
 func (p *GamePerson) Strength() int {
-	// need to implement
-	return 0
+	return int((p.stats >> statsStrengthShift) & stats4BitMask)
 }
 
 func (p *GamePerson) Experience() int {
-	// need to implement
-	return 0
+	return int((p.stats >> statsExperienceShift) & stats4BitMask)
 }
 
 func (p *GamePerson) Level() int {
-	// need to implement
-	return 0
+	return int((p.stats >> statsLevelShift) & stats4BitMask)
 }
 
 func (p *GamePerson) HasHouse() bool {
-	// need to implement
-	return false
+	return ((p.socialStats >> socialHouseShift) & social1BitMask) != 0
 }
 
-func (p *GamePerson) HasGun() bool {
-	// need to implement
-	return false
+func (p *GamePerson) HasWeapon() bool {
+	return p.hasWeapon
 }
 
-func (p *GamePerson) HasFamilty() bool {
-	// need to implement
-	return false
+func (p *GamePerson) HasFamily() bool {
+	return ((p.socialStats >> socialFamilyShift) & social1BitMask) != 0
 }
 
 func (p *GamePerson) Type() int {
-	// need to implement
-	return 0
+	return int((p.socialStats >> socialTypeShift) & social2BitMask)
 }
 
 func TestGamePerson(t *testing.T) {
@@ -220,7 +273,7 @@ func TestGamePerson(t *testing.T) {
 	assert.Equal(t, experience, person.Experience())
 	assert.Equal(t, level, person.Level())
 	assert.True(t, person.HasHouse())
-	assert.True(t, person.HasFamilty())
-	assert.False(t, person.HasGun())
+	assert.True(t, person.HasFamily())
+	assert.False(t, person.HasWeapon())
 	assert.Equal(t, personType, person.Type())
 }
