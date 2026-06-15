@@ -8,9 +8,6 @@ import (
 )
 
 func Map[T, R any](data []T, action func(T) R) []R {
-	if data == nil {
-		return nil
-	}
 	if len(data) == 0 {
 		return []R{}
 	}
@@ -25,7 +22,7 @@ func Map[T, R any](data []T, action func(T) R) []R {
 
 func Filter[T any](data []T, action func(T) bool) []T {
 	if len(data) == 0 {
-		return data
+		return []T{}
 	}
 
 	result := make([]T, 0, len(data))
@@ -59,6 +56,7 @@ func TestMap(t *testing.T) {
 			action: func(number int) int {
 				return -number
 			},
+			result: []int{},
 		},
 		"empty numbers": {
 			data: []int{},
@@ -122,6 +120,7 @@ func TestFilter(t *testing.T) {
 			action: func(number int) bool {
 				return number == 0
 			},
+			result: []int{},
 		},
 		"empty numbers": {
 			data: []int{},
