@@ -10,24 +10,24 @@ import (
 
 // go test -v homework_test.go
 
-type orderedMapNode[K cmp.Ordered, V any] struct {
+type orderedMapNode[K cmp.Ordered] struct {
 	key   K
-	value V
+	value any
 
-	left  *orderedMapNode[K, V]
-	right *orderedMapNode[K, V]
+	left  *orderedMapNode[K]
+	right *orderedMapNode[K]
 }
 
-type OrderedMap[K cmp.Ordered, V any] struct {
-	root *orderedMapNode[K, V]
+type OrderedMap[K cmp.Ordered] struct {
+	root *orderedMapNode[K]
 	size int
 }
 
-func NewOrderedMap[K cmp.Ordered, V any]() *OrderedMap[K, V] {
-	return &OrderedMap[K, V]{}
+func NewOrderedMap[K cmp.Ordered]() *OrderedMap[K] {
+	return &OrderedMap[K]{}
 }
 
-func (m *OrderedMap[K, V]) Insert(key K, value V) {
+func (m *OrderedMap[K]) Insert(key K, value any) {
 	var sizeIncreased bool
 	m.root, sizeIncreased = insertNode(m.root, key, value)
 	if sizeIncreased {
@@ -35,9 +35,9 @@ func (m *OrderedMap[K, V]) Insert(key K, value V) {
 	}
 }
 
-func insertNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], key K, value V) (*orderedMapNode[K, V], bool) {
+func insertNode[K cmp.Ordered](node *orderedMapNode[K], key K, value any) (*orderedMapNode[K], bool) {
 	if node == nil {
-		return &orderedMapNode[K, V]{key: key, value: value}, true
+		return &orderedMapNode[K]{key: key, value: value}, true
 	}
 
 	sizeIncreased := false
@@ -56,7 +56,7 @@ func insertNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], key K, value V
 	return node, sizeIncreased
 }
 
-func (m *OrderedMap[K, V]) Erase(key K) {
+func (m *OrderedMap[K]) Erase(key K) {
 	var sizeDecreased bool
 	m.root, sizeDecreased = eraseNode(m.root, key)
 	if sizeDecreased {
@@ -64,7 +64,7 @@ func (m *OrderedMap[K, V]) Erase(key K) {
 	}
 }
 
-func eraseNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], key K) (*orderedMapNode[K, V], bool) {
+func eraseNode[K cmp.Ordered](node *orderedMapNode[K], key K) (*orderedMapNode[K], bool) {
 	if node == nil {
 		return nil, false
 	}
@@ -96,19 +96,19 @@ func eraseNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], key K) (*ordere
 	return replacement, true
 }
 
-func detachMinNode[K cmp.Ordered, V any](node *orderedMapNode[K, V]) (*orderedMapNode[K, V], *orderedMapNode[K, V]) {
+func detachMinNode[K cmp.Ordered](node *orderedMapNode[K]) (*orderedMapNode[K], *orderedMapNode[K]) {
 	if node.left == nil {
 		right := node.right
 		node.right = nil
 		return right, node
 	}
 
-	var min *orderedMapNode[K, V]
+	var min *orderedMapNode[K]
 	node.left, min = detachMinNode(node.left)
 	return node, min
 }
 
-func (m *OrderedMap[K, V]) Contains(key K) bool {
+func (m *OrderedMap[K]) Contains(key K) bool {
 	current := m.root
 	for current != nil {
 		if current.key == key {
@@ -124,15 +124,15 @@ func (m *OrderedMap[K, V]) Contains(key K) bool {
 	return false
 }
 
-func (m *OrderedMap[K, V]) Size() int {
+func (m *OrderedMap[K]) Size() int {
 	return m.size
 }
 
-func (m *OrderedMap[K, V]) ForEach(action func(K, V)) {
+func (m *OrderedMap[K]) ForEach(action func(K, any)) {
 	forEachNode(m.root, action)
 }
 
-func forEachNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], action func(K, V)) {
+func forEachNode[K cmp.Ordered](node *orderedMapNode[K], action func(K, any)) {
 	if node == nil {
 		return
 	}
@@ -143,7 +143,7 @@ func forEachNode[K cmp.Ordered, V any](node *orderedMapNode[K, V], action func(K
 }
 
 func TestOrderedMap(t *testing.T) {
-	data := NewOrderedMap[int, int]()
+	data := NewOrderedMap[int]()
 	assert.Zero(t, data.Size())
 
 	data.Insert(10, 10)
@@ -162,7 +162,7 @@ func TestOrderedMap(t *testing.T) {
 
 	var keys []int
 	expectedKeys := []int{2, 4, 5, 10, 12, 14, 15}
-	data.ForEach(func(key, _ int) {
+	data.ForEach(func(key int, _ any) {
 		keys = append(keys, key)
 	})
 
@@ -180,7 +180,7 @@ func TestOrderedMap(t *testing.T) {
 
 	keys = nil
 	expectedKeys = []int{4, 5, 10, 12}
-	data.ForEach(func(key, _ int) {
+	data.ForEach(func(key int, _ any) {
 		keys = append(keys, key)
 	})
 
@@ -194,7 +194,7 @@ func TestOrderedMap(t *testing.T) {
 
 	keys = nil
 	expectedKeys = []int{4, 6, 10, 12}
-	data.ForEach(func(key, _ int) {
+	data.ForEach(func(key int, _ any) {
 		keys = append(keys, key)
 	})
 
@@ -202,7 +202,7 @@ func TestOrderedMap(t *testing.T) {
 }
 
 func TestOrderedMapEraseRootWithDeepSuccessor(t *testing.T) {
-	data := NewOrderedMap[int, int]()
+	data := NewOrderedMap[int]()
 	for _, key := range []int{10, 5, 20, 15, 30, 12, 17} {
 		data.Insert(key, key)
 	}
@@ -214,7 +214,7 @@ func TestOrderedMapEraseRootWithDeepSuccessor(t *testing.T) {
 
 	var keys []int
 	expectedKeys := []int{5, 12, 15, 17, 20, 30}
-	data.ForEach(func(key, _ int) {
+	data.ForEach(func(key int, _ any) {
 		keys = append(keys, key)
 	})
 
@@ -222,7 +222,7 @@ func TestOrderedMapEraseRootWithDeepSuccessor(t *testing.T) {
 }
 
 func TestOrderedMapWithSlices(t *testing.T) {
-	data := NewOrderedMap[string, []map[int]int]() // наввернем что-нибудь покруче
+	data := NewOrderedMap[string]() // наввернем что-нибудь покруче
 	assert.Zero(t, data.Size())
 
 	data.Insert("D", []map[int]int{
@@ -262,7 +262,7 @@ func TestOrderedMapWithSlices(t *testing.T) {
 
 	var keys []string
 	expectedKeys := []string{"A", "B", "C", "D", "E", "F", "G"}
-	data.ForEach(func(key string, _ []map[int]int) {
+	data.ForEach(func(key string, _ any) {
 		keys = append(keys, key)
 	})
 
@@ -280,7 +280,7 @@ func TestOrderedMapWithSlices(t *testing.T) {
 
 	keys = nil
 	expectedKeys = []string{"B", "D", "E", "G"}
-	data.ForEach(func(key string, _ []map[int]int) {
+	data.ForEach(func(key string, _ any) {
 		keys = append(keys, key)
 	})
 
