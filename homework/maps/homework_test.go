@@ -56,56 +56,40 @@ func insertNode[K cmp.Ordered](node *orderedMapNode[K], key K, value any) (*orde
 	return node, sizeIncreased
 }
 
-func (m *OrderedMap[K]) Erase(key K) {
-	var sizeDecreased bool
-	m.root, sizeDecreased = eraseNode(m.root, key)
-	if sizeDecreased {
-		m.size--
-	}
-}
+func (m *OrderedMap[T]) Erase(key T) {
+	current := &m.root
+	for *current != nil && (*current).key != key {
+		if key < (*current).key {
+			current = &(*current).left
+			continue
+		}
 
-func eraseNode[K cmp.Ordered](node *orderedMapNode[K], key K) (*orderedMapNode[K], bool) {
-	if node == nil {
-		return nil, false
+		current = &(*current).right
 	}
 
-	sizeDecreased := false
-
-	if key < node.key {
-		node.left, sizeDecreased = eraseNode(node.left, key)
-		return node, sizeDecreased
+	// Ключ не найден
+	if *current == nil {
+		return
 	}
 
-	if key > node.key {
-		node.right, sizeDecreased = eraseNode(node.right, key)
-		return node, sizeDecreased
+	target := *current
+	switch {
+	case target.left == nil:
+		*current = target.right
+	case target.right == nil:
+		*current = target.left
+	default:
+		// Два ребенка - ищем минимального в правом поддерве
+		successors := &target.right
+		for (*successors).left != nil {
+			successors = &(*successors).left
+		}
+		target.key = (*successors).key
+		target.value = (*successors).value
+		// У successor'а нет левого ребёнка
+		*successors = (*successors).right
 	}
-
-	if node.left == nil {
-		return node.right, true
-	}
-
-	if node.right == nil {
-		return node.left, true
-	}
-
-	replacementRight, replacement := detachMinNode(node.right)
-	replacement.left = node.left
-	replacement.right = replacementRight
-
-	return replacement, true
-}
-
-func detachMinNode[K cmp.Ordered](node *orderedMapNode[K]) (*orderedMapNode[K], *orderedMapNode[K]) {
-	if node.left == nil {
-		right := node.right
-		node.right = nil
-		return right, node
-	}
-
-	var min *orderedMapNode[K]
-	node.left, min = detachMinNode(node.left)
-	return node, min
+	m.size--
 }
 
 func (m *OrderedMap[K]) Contains(key K) bool {
