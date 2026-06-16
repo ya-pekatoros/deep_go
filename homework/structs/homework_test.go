@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"math"
 	"testing"
 	"unsafe"
@@ -10,6 +11,18 @@ import (
 )
 
 type Option func(*GamePerson)
+
+type Packed interface {
+	GamePersonStats | GamePersonSocialStats
+}
+
+func setField[T Packed](store, value, mask T, shift int) T {
+	return (store &^ (mask << shift)) | ((value & mask) << shift)
+}
+
+func getField[T Packed](store, mask T, shift int) int {
+	return int((store >> shift) & mask)
+}
 
 func WithName(name string) func(*GamePerson) {
 	return func(person *GamePerson) {
@@ -34,49 +47,43 @@ func WithGold(gold int) func(*GamePerson) {
 
 func WithMana(mana int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.stats = (person.stats &^ (GamePersonStats(stats10BitMask) << statsManaShift)) |
-			(GamePersonStats(mana&stats10BitMask) << statsManaShift)
+		person.stats = setField(person.stats, GamePersonStats(mana), GamePersonStats(stats10BitMask), statsManaShift)
 	}
 }
 
 func WithHealth(health int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.stats = (person.stats &^ (GamePersonStats(stats10BitMask) << statsHealthShift)) |
-			(GamePersonStats(health&stats10BitMask) << statsHealthShift)
+		person.stats = setField(person.stats, GamePersonStats(health), GamePersonStats(stats10BitMask), statsHealthShift)
 	}
 }
 
 func WithRespect(respect int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.socialStats = (person.socialStats &^ (GamePersonSocialStats(social4BitMask) << socialRespectShift)) |
-			(GamePersonSocialStats(respect&social4BitMask) << socialRespectShift)
+		person.socialStats = setField(person.socialStats, GamePersonSocialStats(respect), GamePersonSocialStats(social4BitMask), socialRespectShift)
 	}
 }
 
 func WithStrength(strength int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.stats = (person.stats &^ (GamePersonStats(stats4BitMask) << statsStrengthShift)) |
-			(GamePersonStats(strength&stats4BitMask) << statsStrengthShift)
+		person.stats = setField(person.stats, GamePersonStats(strength), GamePersonStats(stats4BitMask), statsStrengthShift)
 	}
 }
 
 func WithExperience(experience int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.stats = (person.stats &^ (GamePersonStats(stats4BitMask) << statsExperienceShift)) |
-			(GamePersonStats(experience&stats4BitMask) << statsExperienceShift)
+		person.stats = setField(person.stats, GamePersonStats(experience), GamePersonStats(stats4BitMask), statsExperienceShift)
 	}
 }
 
 func WithLevel(level int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.stats = (person.stats &^ (GamePersonStats(stats4BitMask) << statsLevelShift)) |
-			(GamePersonStats(level&stats4BitMask) << statsLevelShift)
+		person.stats = setField(person.stats, GamePersonStats(level), GamePersonStats(stats4BitMask), statsLevelShift)
 	}
 }
 
 func WithHouse() func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.socialStats |= GamePersonSocialStats(social1BitMask) << socialHouseShift
+		person.socialStats = setField(person.socialStats, GamePersonSocialStats(1), GamePersonSocialStats(social1BitMask), socialHouseShift)
 	}
 }
 
@@ -88,14 +95,13 @@ func WithWeapon() func(*GamePerson) {
 
 func WithFamily() func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.socialStats |= GamePersonSocialStats(social1BitMask) << socialFamilyShift
+		person.socialStats = setField(person.socialStats, GamePersonSocialStats(1), GamePersonSocialStats(social1BitMask), socialFamilyShift)
 	}
 }
 
 func WithType(personType int) func(*GamePerson) {
 	return func(person *GamePerson) {
-		person.socialStats = (person.socialStats &^ (GamePersonSocialStats(social2BitMask) << socialTypeShift)) |
-			(GamePersonSocialStats(personType&social2BitMask) << socialTypeShift)
+		person.socialStats = setField(person.socialStats, GamePersonSocialStats(personType), GamePersonSocialStats(social2BitMask), socialTypeShift)
 	}
 }
 
@@ -192,31 +198,31 @@ func (p *GamePerson) Gold() int {
 }
 
 func (p *GamePerson) Mana() int {
-	return int((p.stats >> statsManaShift) & stats10BitMask)
+	return getField(p.stats, GamePersonStats(stats10BitMask), statsManaShift)
 }
 
 func (p *GamePerson) Health() int {
-	return int((p.stats >> statsHealthShift) & stats10BitMask)
+	return getField(p.stats, GamePersonStats(stats10BitMask), statsHealthShift)
 }
 
 func (p *GamePerson) Respect() int {
-	return int((p.socialStats >> socialRespectShift) & social4BitMask)
+	return getField(p.socialStats, GamePersonSocialStats(social4BitMask), socialRespectShift)
 }
 
 func (p *GamePerson) Strength() int {
-	return int((p.stats >> statsStrengthShift) & stats4BitMask)
+	return getField(p.stats, GamePersonStats(stats4BitMask), statsStrengthShift)
 }
 
 func (p *GamePerson) Experience() int {
-	return int((p.stats >> statsExperienceShift) & stats4BitMask)
+	return getField(p.stats, GamePersonStats(stats4BitMask), statsExperienceShift)
 }
 
 func (p *GamePerson) Level() int {
-	return int((p.stats >> statsLevelShift) & stats4BitMask)
+	return getField(p.stats, GamePersonStats(stats4BitMask), statsLevelShift)
 }
 
 func (p *GamePerson) HasHouse() bool {
-	return ((p.socialStats >> socialHouseShift) & social1BitMask) != 0
+	return getField(p.socialStats, GamePersonSocialStats(social1BitMask), socialHouseShift) != 0
 }
 
 func (p *GamePerson) HasWeapon() bool {
@@ -224,11 +230,60 @@ func (p *GamePerson) HasWeapon() bool {
 }
 
 func (p *GamePerson) HasFamily() bool {
-	return ((p.socialStats >> socialFamilyShift) & social1BitMask) != 0
+	return getField(p.socialStats, GamePersonSocialStats(social1BitMask), socialFamilyShift) != 0
 }
 
 func (p *GamePerson) Type() int {
-	return int((p.socialStats >> socialTypeShift) & social2BitMask)
+	return getField(p.socialStats, GamePersonSocialStats(social2BitMask), socialTypeShift)
+}
+
+func (p *GamePerson) CordX() int {
+	return p.X()
+}
+
+func (p *GamePerson) CordY() int {
+	return p.Y()
+}
+
+func (p *GamePerson) CordZ() int {
+	return p.Z()
+}
+
+// MarshalJSON сериализует GamePerson в JSON через геттеры.
+func (p GamePerson) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Name       string `json:"name"`
+		CordX      int    `json:"cord_x"`
+		CordY      int    `json:"cord_y"`
+		CordZ      int    `json:"cord_z"`
+		Gold       int    `json:"gold"`
+		Mana       int    `json:"mana"`
+		Health     int    `json:"health"`
+		Respect    int    `json:"respect"`
+		Strength   int    `json:"strength"`
+		Experience int    `json:"experience"`
+		Level      int    `json:"level"`
+		Type       int    `json:"type"`
+		HasHouse   bool   `json:"has_house"`
+		HasWeapon  bool   `json:"has_weapon"`
+		HasFamily  bool   `json:"has_family"`
+	}{
+		Name:       p.Name(),
+		CordX:      p.CordX(),
+		CordY:      p.CordY(),
+		CordZ:      p.CordZ(),
+		Gold:       p.Gold(),
+		Mana:       p.Mana(),
+		Health:     p.Health(),
+		Respect:    p.Respect(),
+		Strength:   p.Strength(),
+		Experience: p.Experience(),
+		Level:      p.Level(),
+		Type:       p.Type(),
+		HasHouse:   p.HasHouse(),
+		HasWeapon:  p.HasWeapon(),
+		HasFamily:  p.HasFamily(),
+	})
 }
 
 func TestGamePerson(t *testing.T) {
@@ -276,4 +331,42 @@ func TestGamePerson(t *testing.T) {
 	assert.True(t, person.HasFamily())
 	assert.False(t, person.HasWeapon())
 	assert.Equal(t, personType, person.Type())
+}
+
+func TestGamePersonMarshalJSON(t *testing.T) {
+	person := NewGamePerson(
+		WithName("player"),
+		WithCoordinates(1, 2, 3),
+		WithGold(4),
+		WithMana(5),
+		WithHealth(6),
+		WithRespect(7),
+		WithStrength(8),
+		WithExperience(9),
+		WithLevel(10),
+		WithHouse(),
+		WithWeapon(),
+		WithFamily(),
+		WithType(WarriorGamePersonType),
+	)
+
+	data, err := json.Marshal(person)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{
+		"name": "player",
+		"cord_x": 1,
+		"cord_y": 2,
+		"cord_z": 3,
+		"gold": 4,
+		"mana": 5,
+		"health": 6,
+		"respect": 7,
+		"strength": 8,
+		"experience": 9,
+		"level": 10,
+		"type": 2,
+		"has_house": true,
+		"has_weapon": true,
+		"has_family": true
+	}`, string(data))
 }
