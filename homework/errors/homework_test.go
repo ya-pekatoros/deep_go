@@ -24,6 +24,10 @@ type MultiError struct {
 }
 
 func (e *MultiError) Error() string {
+	if len(e.errors) == 0 {
+		return "0 errors occured\n"
+	}
+
 	builder := strings.Builder{}
 	for _, err := range e.errors {
 		builder.WriteString(err.Error() + "\t* ")
@@ -53,6 +57,8 @@ func Append(err error, errs ...error) *MultiError {
 
 func TestMultiError(t *testing.T) {
 	var err error
+	assert.EqualError(t, Append(err), "0 errors occured\n")
+
 	err = Append(err, errors.New("error 1"))
 	err = Append(err, errors.New("error 2"))
 
