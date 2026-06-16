@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,69 +22,69 @@ type PaymentService struct {
 	NotEmptyStruct bool
 }
 
+type registration struct {
+	constructor func() any
+	singleton   bool
+}
+
 type Container struct {
-	constructors map[string]reflect.Value
-	singletons   map[string]reflect.Value
-	instances    map[string]interface{}
+	registrations map[string]registration
+	instances     map[string]any
 }
 
 func NewContainer() *Container {
 	return &Container{
-		constructors: make(map[string]reflect.Value),
-		singletons:   make(map[string]reflect.Value),
-		instances:    make(map[string]interface{}),
+		registrations: make(map[string]registration),
+		instances:     make(map[string]any),
 	}
 }
 
-func (c *Container) registerType(name string, constructor interface{}) {
-	value := reflect.ValueOf(constructor)
-	if !isValidConstructor(value) {
-		return
+func (c *Container) registerType(name string, constructor func() any) {
+	c.registrations[name] = registration{
+		constructor: constructor,
 	}
-
-	c.constructors[name] = value
-	delete(c.singletons, name)
 	delete(c.instances, name)
 }
 
-func (c *Container) registerSingletonType(name string, constructor interface{}) {
-	value := reflect.ValueOf(constructor)
-	if !isValidConstructor(value) {
-		return
+func (c *Container) registerSingletonType(name string, constructor func() any) {
+	c.registrations[name] = registration{
+		constructor: constructor,
+		singleton:   true,
 	}
-
-	c.singletons[name] = value
-	delete(c.constructors, name)
 	delete(c.instances, name)
 }
 
-func (c *Container) resolve(name string) (interface{}, error) {
+func (c *Container) resolve(name string) (any, error) {
 	if instance, ok := c.instances[name]; ok {
 		return instance, nil
 	}
 
-	if constructor, ok := c.singletons[name]; ok {
-		instance := callConstructor(constructor)
+	item, ok := c.registrations[name]
+	if !ok {
+		return nil, fmt.Errorf("type %q is not registered", name)
+	}
+
+	instance := item.constructor()
+	if item.singleton {
 		c.instances[name] = instance
-		return instance, nil
 	}
 
-	if constructor, ok := c.constructors[name]; ok {
-		return callConstructor(constructor), nil
-	}
-
-	return nil, fmt.Errorf("тип %q не зарегистрирован", name)
+	return instance, nil
 }
 
 // Регистрация типа в контейнере, если ранее тип был зарегистрирован как синглон, то он будет перерегистрирован как обычный тип.
 func Register[T any](c *Container, constructor func() T) {
-	c.registerType(typeName[T](), constructor)
+	c.registerType(typeName[T](), func() any {
+		return constructor()
+	})
 }
 
 // Регистрация синглтона в контейнере, если ранее тип был зарегистрирован как обычный тип, то он будет перерегистрирован как синглон.
 // Если вызывается повторно, то предыдущая регистрация будет перезаписана, а все ранее созданные экземпляры будут удалены.
 func RegisterSingleton[T any](c *Container, constructor func() T) {
-	c.registerSingletonType(typeName[T](), constructor)
+	c.registerSingletonType(typeName[T](), func() any {
+		return constructor()
+	})
 }
 
 func Resolve[T any](c *Container) (T, error) {
@@ -99,28 +98,15 @@ func Resolve[T any](c *Container) (T, error) {
 
 	result, ok := value.(T)
 	if !ok {
-		return zero, fmt.Errorf("тип %q вернул значение неожиданного типа", name)
+		return zero, fmt.Errorf("type %q returned a value of an unexpected type", name)
 	}
 
 	return result, nil
 }
 
 func typeName[T any]() string {
-	return reflect.TypeFor[T]().String()
-}
-
-func isValidConstructor(value reflect.Value) bool {
-	if value.Kind() != reflect.Func {
-		return false
-	}
-
-	constructorType := value.Type()
-	return constructorType.NumIn() == 0 && constructorType.NumOut() == 1
-}
-
-func callConstructor(constructor reflect.Value) interface{} {
-	result := constructor.Call(nil)
-	return result[0].Interface()
+	var zero T
+	return fmt.Sprintf("%T", zero)
 }
 
 func TestDIContainer(t *testing.T) {
