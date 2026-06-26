@@ -22,54 +22,39 @@ type PaymentService struct {
 	NotEmptyStruct bool
 }
 
-type registration struct {
-	constructor func() any
-	singleton   bool
-}
-
 type Container struct {
-	registrations map[string]registration
-	instances     map[string]any
+	registrations map[string]func() any
+	singletons    map[string]any
 }
 
 func NewContainer() *Container {
 	return &Container{
-		registrations: make(map[string]registration),
-		instances:     make(map[string]any),
+		registrations: make(map[string]func() any),
+		singletons:    make(map[string]any),
 	}
 }
 
 func (c *Container) registerType(name string, constructor func() any) {
-	c.registrations[name] = registration{
-		constructor: constructor,
-	}
-	delete(c.instances, name)
+	c.registrations[name] = constructor
+	delete(c.singletons, name)
 }
 
 func (c *Container) registerSingletonType(name string, constructor func() any) {
-	c.registrations[name] = registration{
-		constructor: constructor,
-		singleton:   true,
-	}
-	delete(c.instances, name)
+	c.singletons[name] = constructor()
+	delete(c.registrations, name)
 }
 
 func (c *Container) resolve(name string) (any, error) {
-	if instance, ok := c.instances[name]; ok {
+	if instance, ok := c.singletons[name]; ok {
 		return instance, nil
 	}
 
-	item, ok := c.registrations[name]
+	constructor, ok := c.registrations[name]
 	if !ok {
 		return nil, fmt.Errorf("type %q is not registered", name)
 	}
 
-	instance := item.constructor()
-	if item.singleton {
-		c.instances[name] = instance
-	}
-
-	return instance, nil
+	return constructor(), nil
 }
 
 // Регистрация типа в контейнере, если ранее тип был зарегистрирован как синглон, то он будет перерегистрирован как обычный тип.
