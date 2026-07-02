@@ -28,19 +28,16 @@ func DefragmentWithSize(memory []byte, pointers []unsafe.Pointer, valueSize int)
 		return
 	}
 
+	pointerIndexes := make(map[unsafe.Pointer][]int, len(pointers))
+	for index, pointer := range pointers {
+		pointerIndexes[pointer] = append(pointerIndexes[pointer], index)
+	}
+
 	writeIndex := 0
 
 	for readIndex := 0; readIndex+valueSize <= len(memory); readIndex++ {
 		currentPointer := unsafe.Pointer(&memory[readIndex])
-		occupied := false
-
-		for _, pointer := range pointers {
-			if pointer == currentPointer {
-				occupied = true
-				break
-			}
-		}
-
+		indexes, occupied := pointerIndexes[currentPointer]
 		if !occupied {
 			continue
 		}
@@ -48,10 +45,8 @@ func DefragmentWithSize(memory []byte, pointers []unsafe.Pointer, valueSize int)
 		copy(memory[writeIndex:writeIndex+valueSize], memory[readIndex:readIndex+valueSize])
 		newPointer := unsafe.Pointer(&memory[writeIndex])
 
-		for pointerIndex, pointer := range pointers {
-			if pointer == currentPointer {
-				pointers[pointerIndex] = newPointer
-			}
+		for _, pointerIndex := range indexes {
+			pointers[pointerIndex] = newPointer
 		}
 
 		writeIndex += valueSize
