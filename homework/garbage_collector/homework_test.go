@@ -10,9 +10,65 @@ import (
 
 // go test -v homework_test.go
 
+type color int
+
+const (
+	white color = iota
+	gray
+	black
+)
+
 func Trace(stacks [][]uintptr) []uintptr {
-	// need to implement
-	return nil
+	roots := make(map[uintptr]struct{})
+	for _, stack := range stacks {
+		for _, pointer := range stack {
+			if pointer != 0 {
+				roots[pointer] = struct{}{}
+			}
+		}
+	}
+
+	colors := make(map[uintptr]color, len(roots))
+	for pointer := range roots {
+		colors[pointer] = gray
+	}
+
+	var pointers []uintptr
+	added := make(map[uintptr]struct{}, len(roots))
+
+	var scan func(uintptr)
+	scan = func(pointer uintptr) {
+		if colors[pointer] == black {
+			return
+		}
+
+		nextPointer := *(*uintptr)(unsafe.Pointer(pointer))
+		if nextPointer != 0 && colors[nextPointer] == white {
+			colors[nextPointer] = gray
+			pointers = append(pointers, nextPointer)
+			scan(nextPointer)
+		}
+
+		colors[pointer] = black
+	}
+
+	for _, stack := range stacks {
+		for _, pointer := range stack {
+			if pointer == 0 {
+				continue
+			}
+
+			if _, ok := added[pointer]; ok {
+				continue
+			}
+
+			added[pointer] = struct{}{}
+			pointers = append(pointers, pointer)
+			scan(pointer)
+		}
+	}
+
+	return pointers
 }
 
 func TestTrace(t *testing.T) {
@@ -56,6 +112,29 @@ func TestTrace(t *testing.T) {
 		uintptr(unsafe.Pointer(&heapPointer4)),
 		uintptr(unsafe.Pointer(&heapPointer3)),
 		uintptr(unsafe.Pointer(&heapObjects[3])),
+	}
+
+	assert.True(t, reflect.DeepEqual(expectedPointers, pointers))
+}
+
+func TestTraceSkipsDuplicatesAndCycles(t *testing.T) {
+	var root uintptr
+	var child uintptr
+
+	root = uintptr(unsafe.Pointer(&child))
+	child = uintptr(unsafe.Pointer(&root))
+
+	stacks := [][]uintptr{
+		{
+			uintptr(unsafe.Pointer(&root)),
+			uintptr(unsafe.Pointer(&root)),
+		},
+	}
+
+	pointers := Trace(stacks)
+	expectedPointers := []uintptr{
+		uintptr(unsafe.Pointer(&root)),
+		uintptr(unsafe.Pointer(&child)),
 	}
 
 	assert.True(t, reflect.DeepEqual(expectedPointers, pointers))
