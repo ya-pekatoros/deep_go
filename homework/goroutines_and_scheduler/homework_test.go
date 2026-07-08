@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/heap"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,25 +13,102 @@ type Task struct {
 }
 
 type Scheduler struct {
-	// need to implement
+	tasks     priorityQueue
+	positions map[int]*scheduledTask
+	nextOrder int
+}
+
+type scheduledTask struct {
+	task     Task
+	priority int
+	order    int
+	index    int
+}
+
+type priorityQueue []*scheduledTask
+
+func (pq priorityQueue) Len() int {
+	return len(pq)
+}
+
+func (pq priorityQueue) Less(i, j int) bool {
+	if pq[i].priority == pq[j].priority {
+		return pq[i].order < pq[j].order
+	}
+
+	return pq[i].priority > pq[j].priority
+}
+
+func (pq priorityQueue) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+	pq[i].index = i
+	pq[j].index = j
+}
+
+func (pq *priorityQueue) Push(x any) {
+	item := x.(*scheduledTask)
+	item.index = len(*pq)
+	*pq = append(*pq, item)
+}
+
+func (pq *priorityQueue) Pop() any {
+	old := *pq
+	lastIndex := len(old) - 1
+	item := old[lastIndex]
+	item.index = -1
+	*pq = old[:lastIndex]
+
+	return item
 }
 
 func NewScheduler() Scheduler {
-	// need to implement
-	return Scheduler{}
+	return Scheduler{
+		positions: make(map[int]*scheduledTask),
+	}
 }
 
 func (s *Scheduler) AddTask(task Task) {
-	// need to implement
+	if s.positions == nil {
+		s.positions = make(map[int]*scheduledTask)
+	}
+
+	if item, ok := s.positions[task.Identifier]; ok {
+		item.task = task
+		item.priority = task.Priority
+		heap.Fix(&s.tasks, item.index)
+		return
+	}
+
+	item := &scheduledTask{
+		task:     task,
+		priority: task.Priority,
+		order:    s.nextOrder,
+	}
+
+	heap.Push(&s.tasks, item)
+	s.positions[task.Identifier] = item
+	s.nextOrder++
 }
 
 func (s *Scheduler) ChangeTaskPriority(taskID int, newPriority int) {
-	// need to implement
+	item, ok := s.positions[taskID]
+	if !ok {
+		return
+	}
+
+	item.priority = newPriority
+	heap.Fix(&s.tasks, item.index)
 }
 
 func (s *Scheduler) GetTask() Task {
-	// need to implement
-	return Task{}
+	if len(s.tasks) == 0 {
+		return Task{}
+	}
+
+	item := heap.Pop(&s.tasks).(*scheduledTask)
+	delete(s.positions, item.task.Identifier)
+
+	return item.task
 }
 
 func TestTrace(t *testing.T) {
@@ -60,4 +138,51 @@ func TestTrace(t *testing.T) {
 
 	task = scheduler.GetTask()
 	assert.Equal(t, task3, task)
+}
+
+func TestChangeUnknownTaskPriorityDoesNothing(t *testing.T) {
+	task := Task{Identifier: 1, Priority: 10}
+
+	scheduler := NewScheduler()
+	scheduler.AddTask(task)
+	scheduler.ChangeTaskPriority(2, 100)
+
+	assert.Equal(t, task, scheduler.GetTask())
+}
+
+func TestGetTaskFromEmptyScheduler(t *testing.T) {
+	scheduler := NewScheduler()
+
+	assert.Equal(t, Task{}, scheduler.GetTask())
+}
+
+func TestChangeTaskPriorityDown(t *testing.T) {
+	task1 := Task{Identifier: 1, Priority: 30}
+	task2 := Task{Identifier: 2, Priority: 20}
+	task3 := Task{Identifier: 3, Priority: 10}
+
+	scheduler := NewScheduler()
+	scheduler.AddTask(task1)
+	scheduler.AddTask(task2)
+	scheduler.AddTask(task3)
+	scheduler.ChangeTaskPriority(1, 5)
+
+	assert.Equal(t, task2, scheduler.GetTask())
+	assert.Equal(t, task3, scheduler.GetTask())
+	assert.Equal(t, task1, scheduler.GetTask())
+}
+
+func TestEqualPriorityTasksAreReturnedByAddOrder(t *testing.T) {
+	task1 := Task{Identifier: 1, Priority: 10}
+	task2 := Task{Identifier: 2, Priority: 10}
+	task3 := Task{Identifier: 3, Priority: 10}
+
+	scheduler := NewScheduler()
+	scheduler.AddTask(task1)
+	scheduler.AddTask(task2)
+	scheduler.AddTask(task3)
+
+	assert.Equal(t, task1, scheduler.GetTask())
+	assert.Equal(t, task2, scheduler.GetTask())
+	assert.Equal(t, task3, scheduler.GetTask())
 }
