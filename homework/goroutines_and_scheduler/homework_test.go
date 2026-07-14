@@ -15,14 +15,11 @@ type Task struct {
 type Scheduler struct {
 	tasks     priorityQueue
 	positions map[int]*scheduledTask
-	nextOrder int
 }
 
 type scheduledTask struct {
-	task     Task
-	priority int
-	order    int
-	index    int
+	task  Task
+	index int
 }
 
 type priorityQueue []*scheduledTask
@@ -32,11 +29,11 @@ func (pq priorityQueue) Len() int {
 }
 
 func (pq priorityQueue) Less(i, j int) bool {
-	if pq[i].priority == pq[j].priority {
-		return pq[i].order < pq[j].order
+	if pq[i].task.Priority == pq[j].task.Priority {
+		return pq[i].task.Identifier < pq[j].task.Identifier
 	}
 
-	return pq[i].priority > pq[j].priority
+	return pq[i].task.Priority > pq[j].task.Priority
 }
 
 func (pq priorityQueue) Swap(i, j int) {
@@ -72,32 +69,30 @@ func (s *Scheduler) AddTask(task Task) {
 		s.positions = make(map[int]*scheduledTask)
 	}
 
-	if item, ok := s.positions[task.Identifier]; ok {
-		item.task = task
-		item.priority = task.Priority
-		heap.Fix(&s.tasks, item.index)
+	if s.ChangeTaskPriority(task.Identifier, task.Priority) {
 		return
 	}
 
+	s.scheduleTask(task)
+}
+
+func (s *Scheduler) scheduleTask(task Task) {
 	item := &scheduledTask{
-		task:     task,
-		priority: task.Priority,
-		order:    s.nextOrder,
+		task: task,
 	}
 
 	heap.Push(&s.tasks, item)
 	s.positions[task.Identifier] = item
-	s.nextOrder++
 }
 
-func (s *Scheduler) ChangeTaskPriority(taskID int, newPriority int) {
-	item, ok := s.positions[taskID]
-	if !ok {
-		return
+func (s *Scheduler) ChangeTaskPriority(taskID int, newPriority int) bool {
+	if item, ok := s.positions[taskID]; ok {
+		item.task.Priority = newPriority
+		heap.Fix(&s.tasks, item.index)
+		return true
 	}
 
-	item.priority = newPriority
-	heap.Fix(&s.tasks, item.index)
+	return false
 }
 
 func (s *Scheduler) GetTask() Task {
@@ -134,7 +129,7 @@ func TestTrace(t *testing.T) {
 	scheduler.ChangeTaskPriority(1, 100)
 
 	task = scheduler.GetTask()
-	assert.Equal(t, task1, task)
+	assert.Equal(t, Task{Identifier: task1.Identifier, Priority: 100}, task)
 
 	task = scheduler.GetTask()
 	assert.Equal(t, task3, task)
@@ -169,18 +164,18 @@ func TestChangeTaskPriorityDown(t *testing.T) {
 
 	assert.Equal(t, task2, scheduler.GetTask())
 	assert.Equal(t, task3, scheduler.GetTask())
-	assert.Equal(t, task1, scheduler.GetTask())
+	assert.Equal(t, Task{Identifier: task1.Identifier, Priority: 5}, scheduler.GetTask())
 }
 
-func TestEqualPriorityTasksAreReturnedByAddOrder(t *testing.T) {
+func TestEqualPriorityTasksAreReturnedByIdentifier(t *testing.T) {
 	task1 := Task{Identifier: 1, Priority: 10}
 	task2 := Task{Identifier: 2, Priority: 10}
 	task3 := Task{Identifier: 3, Priority: 10}
 
 	scheduler := NewScheduler()
+	scheduler.AddTask(task3)
 	scheduler.AddTask(task1)
 	scheduler.AddTask(task2)
-	scheduler.AddTask(task3)
 
 	assert.Equal(t, task1, scheduler.GetTask())
 	assert.Equal(t, task2, scheduler.GetTask())
